@@ -3,6 +3,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const memorySystem = require('./memory-system');
 
 const app = express();
 const PORT = 3333;
@@ -603,16 +604,34 @@ function openBrowser() {
   spawn(command, [url], { detached: true, stdio: 'ignore' }).unref();
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🚀 Local AI Labs - Network Ready!`);
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`\n🚀 Local AI Labs - AI Agent System v2.0`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`📱 Local Access:    http://localhost:${PORT}`);
   console.log(`🌐 Network Access:  http://${LOCAL_IP}:${PORT}`);
   console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`💬 Model: dolphin-llama3`);
-  console.log(`⚡ Features: Multi-device, Text selection, Network access`);
+  console.log(`\n🤖 AI Agent Powers:`);
+  console.log(`  🖥️  Terminal execution`);
+  console.log(`  🌐 Web browsing & search`);
+  console.log(`  📁 File system access`);
+  console.log(`  🧠 Persistent memory`);
+  console.log(`  🎤 Voice interface`);
+  console.log(`  💻 Code execution`);
   console.log(`\n📋 Share network URL with devices on same WiFi`);
-  console.log(`🔒 Each device has isolated chat history\n`);
+  console.log(`🔒 Each device has isolated chat history`);
+
+  // Initialize memory system
+  console.log(`\n🧠 Initializing memory system...`);
+  const memoryInitialized = await memorySystem.initialize();
+
+  if (memoryInitialized) {
+    console.log(`✅ Memory system ready (ChromaDB)`);
+  } else {
+    console.log(`⚠️  Memory system unavailable (install: docker run -p 8000:8000 chromadb/chroma)`);
+  }
+
+  console.log(``);
 
   // Auto-open browser after 1 second
   setTimeout(openBrowser, 1000);
@@ -999,6 +1018,213 @@ app.post('/api/tools/file/write', (req, res) => {
     res.status(500).json({
       tool: 'file_write',
       path,
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// ============================================
+// MEMORY & KNOWLEDGE SYSTEM
+// ============================================
+
+// Search memories
+app.post('/api/memory/search', async (req, res) => {
+  const { query, limit = 5 } = req.body;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Query required' });
+  }
+
+  try {
+    const memories = await memorySystem.search(query, limit);
+
+    res.json({
+      tool: 'memory_search',
+      query,
+      memories,
+      count: memories.length,
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      tool: 'memory_search',
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// Store a memory manually
+app.post('/api/memory/store', async (req, res) => {
+  const { text, metadata = {} } = req.body;
+
+  if (!text) {
+    return res.status(400).json({ error: 'Text required' });
+  }
+
+  try {
+    const success = await memorySystem.store(text, metadata);
+
+    res.json({
+      tool: 'memory_store',
+      success,
+      text: text.slice(0, 100) + '...'
+    });
+  } catch (error) {
+    res.status(500).json({
+      tool: 'memory_store',
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// Get memory statistics
+app.get('/api/memory/stats', async (req, res) => {
+  try {
+    const stats = await memorySystem.getStats();
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Clear all memories (dangerous!)
+app.delete('/api/memory/clear', async (req, res) => {
+  const { confirmed } = req.body;
+
+  if (!confirmed) {
+    return res.status(403).json({
+      error: 'Confirmation required',
+      message: 'This will delete all memories permanently'
+    });
+  }
+
+  try {
+    const success = await memorySystem.clearAll();
+    res.json({ success, message: 'All memories cleared' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// CODE EXECUTION SANDBOX
+// ============================================
+
+// Execute code safely
+app.post('/api/tools/execute', async (req, res) => {
+  const { code, language = 'javascript' } = req.body;
+
+  if (!code) {
+    return res.status(400).json({ error: 'Code required' });
+  }
+
+  // Supported languages
+  const supported = ['javascript', 'python', 'bash'];
+
+  if (!supported.includes(language.toLowerCase())) {
+    return res.status(400).json({
+      error: `Unsupported language: ${language}`,
+      supported: supported
+    });
+  }
+
+  try {
+    let result;
+
+    if (language === 'javascript') {
+      // Execute JavaScript in isolated context
+      const { VM } = require('vm2');
+      const vm = new VM({
+        timeout: 5000, // 5 second timeout
+        sandbox: {
+          console: {
+            log: (...args) => {
+              result = (result || '') + args.join(' ') + '\n';
+            }
+          }
+        }
+      });
+
+      try {
+        const output = vm.run(code);
+        result = result || String(output);
+
+        res.json({
+          tool: 'execute',
+          language,
+          output: result,
+          success: true
+        });
+      } catch (error) {
+        res.json({
+          tool: 'execute',
+          language,
+          error: error.message,
+          success: false
+        });
+      }
+    } else if (language === 'python') {
+      // Execute Python code (requires Python installed)
+      const { exec } = require('child_process');
+
+      const pythonCode = code.replace(/"/g, '\\"');
+      const command = `python3 -c "${pythonCode}"`;
+
+      exec(command, {
+        timeout: 5000,
+        maxBuffer: 1024 * 1024
+      }, (error, stdout, stderr) => {
+        if (error) {
+          return res.json({
+            tool: 'execute',
+            language,
+            error: error.message,
+            stderr: stderr.slice(0, 1000),
+            success: false
+          });
+        }
+
+        res.json({
+          tool: 'execute',
+          language,
+          output: stdout.slice(0, 10000),
+          success: true
+        });
+      });
+    } else if (language === 'bash') {
+      // Execute bash commands
+      const { exec } = require('child_process');
+
+      exec(code, {
+        timeout: 5000,
+        maxBuffer: 1024 * 1024,
+        shell: '/bin/bash'
+      }, (error, stdout, stderr) => {
+        if (error) {
+          return res.json({
+            tool: 'execute',
+            language,
+            error: error.message,
+            stderr: stderr.slice(0, 1000),
+            success: false
+          });
+        }
+
+        res.json({
+          tool: 'execute',
+          language,
+          output: stdout.slice(0, 10000),
+          success: true
+        });
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      tool: 'execute',
+      language,
       error: error.message,
       success: false
     });
