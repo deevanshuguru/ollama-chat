@@ -647,3 +647,361 @@ app.post('/api/server/reload', (req, res) => {
   res.json({ message: 'Clearing cache...' });
 });
 
+// ============================================
+// AI AGENT TOOLS
+// ============================================
+
+// Terminal command execution
+app.post('/api/tools/terminal', (req, res) => {
+  const { command } = req.body;
+
+  if (!command) {
+    return res.status(400).json({ error: 'Command required' });
+  }
+
+  // Safety checks - block dangerous commands
+  const dangerous = [
+    'rm -rf',
+    'sudo',
+    'chmod 777',
+    'dd if=',
+    'mkfs',
+    '> /dev/',
+    'format',
+    'shutdown',
+    'reboot'
+  ];
+
+  const isDangerous = dangerous.some(cmd =>
+    command.toLowerCase().includes(cmd.toLowerCase())
+  );
+
+  if (isDangerous) {
+    return res.status(403).json({
+      error: 'Dangerous command blocked',
+      suggestion: 'This command could harm your system. Please review and modify.',
+      blocked: true
+    });
+  }
+
+  // Execute command with safety limits
+  const { exec } = require('child_process');
+  exec(command, {
+    timeout: 30000, // 30 second timeout
+    maxBuffer: 1024 * 1024, // 1MB output limit
+    cwd: process.env.HOME || '~'
+  }, (error, stdout, stderr) => {
+    res.json({
+      tool: 'terminal',
+      command,
+      stdout: stdout.slice(0, 10000), // Limit to 10KB
+      stderr: stderr.slice(0, 10000),
+      error: error ? error.message : null,
+      exit_code: error ? error.code || 1 : 0,
+      success: !error
+    });
+  });
+});
+
+// Web browsing - fetch URL content
+app.post('/api/tools/browse', async (req, res) => {
+  const { url } = req.body;
+
+  if (!url) {
+    return res.status(400).json({ error: 'URL required' });
+  }
+
+  // Validate URL
+  try {
+    new URL(url);
+  } catch (e) {
+    return res.status(400).json({ error: 'Invalid URL' });
+  }
+
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const { JSDOM } = require('jsdom');
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'LocalAILabs/1.0 (AI Assistant)'
+      },
+      timeout: 10000 // 10 second timeout
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        error: `HTTP ${response.status}: ${response.statusText}`
+      });
+    }
+
+    const html = await response.text();
+
+    // Extract text content
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
+
+    // Remove script and style elements
+    document.querySelectorAll('script, style, nav, footer').forEach(el => el.remove());
+
+    const title = document.title || 'Untitled';
+    const body = document.body;
+    const text = body ? body.textContent.trim() : '';
+
+    // Clean up whitespace
+    const cleanText = text
+      .replace(/\s+/g, ' ')
+      .replace(/\n\s*\n/g, '\n')
+      .slice(0, 50000); // Limit to 50KB
+
+    res.json({
+      tool: 'browse',
+      url,
+      title,
+      content: cleanText,
+      content_length: cleanText.length,
+      success: true
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      tool: 'browse',
+      url,
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// Web search using DuckDuckGo
+app.post('/api/tools/search', async (req, res) => {
+  const { query } = req.body;
+
+  if (!query) {
+    return res.status(400).json({ error: 'Search query required' });
+  }
+
+  try {
+    const fetch = (await import('node-fetch')).default;
+    const cheerio = require('cheerio');
+
+    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+
+    const response = await fetch(searchUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      },
+      timeout: 10000
+    });
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+
+    const results = [];
+
+    $('.result').slice(0, 10).each((i, elem) => {
+      const $result = $(elem);
+      const $link = $result.find('.result__a');
+      const $snippet = $result.find('.result__snippet');
+
+      results.push({
+        title: $link.text().trim(),
+        url: $link.attr('href'),
+        snippet: $snippet.text().trim()
+      });
+    });
+
+    res.json({
+      tool: 'search',
+      query,
+      results,
+      count: results.length,
+      success: true
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      tool: 'search',
+      query,
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// File system - read file
+app.post('/api/tools/file/read', (req, res) => {
+  const { path } = req.body;
+
+  if (!path) {
+    return res.status(400).json({ error: 'File path required' });
+  }
+
+  // Safety: Check if path is in safe directories
+  const safePaths = [
+    process.env.HOME + '/Documents',
+    process.env.HOME + '/Downloads',
+    process.env.HOME + '/Desktop',
+    '/tmp'
+  ];
+
+  const isPathSafe = safePaths.some(safe => path.startsWith(safe));
+
+  if (!isPathSafe) {
+    return res.status(403).json({
+      error: 'Path not in allowed directories',
+      allowed: safePaths,
+      blocked: true
+    });
+  }
+
+  try {
+    const content = fs.readFileSync(path, 'utf8');
+    const stats = fs.statSync(path);
+
+    res.json({
+      tool: 'file_read',
+      path,
+      content: content.slice(0, 100000), // 100KB limit
+      size: stats.size,
+      modified: stats.mtime,
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      tool: 'file_read',
+      path,
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// File system - list directory
+app.post('/api/tools/file/list', (req, res) => {
+  const { path } = req.body;
+
+  if (!path) {
+    return res.status(400).json({ error: 'Directory path required' });
+  }
+
+  // Safety: Check if path is in safe directories
+  const safePaths = [
+    process.env.HOME + '/Documents',
+    process.env.HOME + '/Downloads',
+    process.env.HOME + '/Desktop',
+    '/tmp'
+  ];
+
+  const isPathSafe = safePaths.some(safe => path.startsWith(safe));
+
+  if (!isPathSafe) {
+    return res.status(403).json({
+      error: 'Path not in allowed directories',
+      allowed: safePaths,
+      blocked: true
+    });
+  }
+
+  try {
+    const files = fs.readdirSync(path);
+
+    const fileDetails = files.map(file => {
+      const filePath = require('path').join(path, file);
+      try {
+        const stats = fs.statSync(filePath);
+        return {
+          name: file,
+          path: filePath,
+          type: stats.isDirectory() ? 'directory' : 'file',
+          size: stats.size,
+          modified: stats.mtime
+        };
+      } catch (e) {
+        return {
+          name: file,
+          path: filePath,
+          error: 'Could not read stats'
+        };
+      }
+    });
+
+    res.json({
+      tool: 'file_list',
+      path,
+      files: fileDetails,
+      count: fileDetails.length,
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      tool: 'file_list',
+      path,
+      error: error.message,
+      success: false
+    });
+  }
+});
+
+// File system - write file (with confirmation required on frontend)
+app.post('/api/tools/file/write', (req, res) => {
+  const { path, content, confirmed } = req.body;
+
+  if (!path || content === undefined) {
+    return res.status(400).json({ error: 'Path and content required' });
+  }
+
+  // Require confirmation
+  if (!confirmed) {
+    return res.status(403).json({
+      error: 'Confirmation required',
+      message: 'File write requires user confirmation',
+      requires_confirmation: true
+    });
+  }
+
+  // Safety: Check if path is in safe directories
+  const safePaths = [
+    process.env.HOME + '/Documents',
+    process.env.HOME + '/Downloads',
+    process.env.HOME + '/Desktop',
+    '/tmp'
+  ];
+
+  const isPathSafe = safePaths.some(safe => path.startsWith(safe));
+
+  if (!isPathSafe) {
+    return res.status(403).json({
+      error: 'Path not in allowed directories',
+      allowed: safePaths,
+      blocked: true
+    });
+  }
+
+  try {
+    // Backup existing file if it exists
+    if (fs.existsSync(path)) {
+      const backupPath = path + '.backup.' + Date.now();
+      fs.copyFileSync(path, backupPath);
+    }
+
+    fs.writeFileSync(path, content, 'utf8');
+    const stats = fs.statSync(path);
+
+    res.json({
+      tool: 'file_write',
+      path,
+      size: stats.size,
+      modified: stats.mtime,
+      success: true
+    });
+  } catch (error) {
+    res.status(500).json({
+      tool: 'file_write',
+      path,
+      error: error.message,
+      success: false
+    });
+  }
+});
+

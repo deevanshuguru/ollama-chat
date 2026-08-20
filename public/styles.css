@@ -1509,3 +1509,271 @@ body {
 @media (prefers-color-scheme: light) {
   /* Keep dark theme by default - user chose this */
 }
+
+/* ============================================
+   AI AGENT TOOLS STYLING
+   ============================================ */
+
+.tool-use {
+  margin-bottom: 20px;
+}
+
+.tool-use .message-content {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent);
+  border-left: 4px solid var(--accent);
+}
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.tool-icon {
+  font-size: 20px;
+}
+
+.tool-name {
+  font-weight: 600;
+  color: var(--accent);
+  flex: 1;
+}
+
+.tool-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.tool-status.success {
+  background: rgba(0, 255, 0, 0.2);
+  color: #00ff00;
+}
+
+.tool-status.error {
+  background: rgba(255, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+.tool-params {
+  margin-bottom: 10px;
+}
+
+.tool-command {
+  display: block;
+  background: var(--bg-primary);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  color: #00ff00;
+  overflow-x: auto;
+}
+
+.tool-query,
+.tool-path {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 0;
+}
+
+.tool-result {
+  margin: 10px 0;
+}
+
+.tool-output {
+  background: var(--bg-primary);
+  padding: 12px;
+  border-radius: 6px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tool-output.stderr {
+  color: #ff6b6b;
+}
+
+.tool-result-blocked,
+.tool-result-error {
+  padding: 12px;
+  border-radius: 6px;
+  margin: 10px 0;
+}
+
+.tool-result-blocked {
+  background: rgba(255, 165, 0, 0.1);
+  border: 1px solid rgba(255, 165, 0, 0.3);
+  color: #ffa500;
+}
+
+.tool-result-error {
+  background: rgba(255, 68, 68, 0.1);
+  border: 1px solid rgba(255, 68, 68, 0.3);
+  color: var(--danger);
+}
+
+.tool-suggestion {
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.tool-success {
+  color: #00ff00;
+  font-weight: 600;
+  padding: 8px;
+}
+
+.tool-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.tool-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.btn-tool-action {
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-tool-action:hover {
+  background: var(--bg-primary);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Browse tool specific */
+.browse-title {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+
+.browse-content {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Search results */
+.search-result {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-result:last-child {
+  border-bottom: none;
+}
+
+.search-title {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.search-title a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.search-title a:hover {
+  text-decoration: underline;
+}
+
+.search-snippet {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+/* File list */
+.file-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.file-item:hover {
+  background: var(--bg-secondary);
+}
+
+.file-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.file-name {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-size {
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.file-content {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* Mobile adjustments for tools */
+@media (max-width: 768px) {
+  .tool-header {
+    flex-wrap: wrap;
+  }
+
+  .tool-output {
+    font-size: 11px;
+    max-height: 300px;
+  }
+
+  .tool-actions {
+    flex-direction: column;
+  }
+
+  .btn-tool-action {
+    width: 100%;
+    text-align: center;
+  }
+
+  .file-list {
+    max-height: 300px;
+  }
+}
