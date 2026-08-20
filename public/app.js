@@ -14,6 +14,7 @@ marked.setOptions({
 let currentConversationId = null;
 let currentMessages = [];
 let isGenerating = false;
+let abortController = null;
 let allConversations = [];
 let showArchived = false;
 let currentSettings = {
@@ -97,7 +98,13 @@ async function initializeOrCreateConversation() {
 
 // Event Listeners
 function setupEventListeners() {
-  sendBtn.addEventListener('click', sendMessage);
+  sendBtn.addEventListener('click', () => {
+    if (isGenerating) {
+      stopGeneration();
+    } else {
+      sendMessage();
+    }
+  });
 
   userInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -416,6 +423,30 @@ async function deleteCurrentConversation() {
   }
 }
 
+// Stop generation
+function stopGeneration() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  isGenerating = false;
+  updateSendButton();
+}
+
+// Update send button UI
+function updateSendButton() {
+  if (isGenerating) {
+    sendBtn.classList.add('stop-mode');
+    sendBtn.querySelector('.send-icon').textContent = '■';
+    sendBtn.title = 'Stop generation';
+  } else {
+    sendBtn.classList.remove('stop-mode');
+    sendBtn.querySelector('.send-icon').textContent = '➤';
+    sendBtn.title = 'Send message';
+    sendBtn.disabled = false;
+  }
+}
+
 // Send message with advanced settings
 async function sendMessage() {
   const message = userInput.value.trim();
@@ -433,8 +464,11 @@ async function sendMessage() {
   currentMessages.push({ role: 'user', content: message });
 
   // Update UI
-  sendBtn.disabled = true;
   isGenerating = true;
+  updateSendButton();
+
+  // Create abort controller for this generation
+  abortController = new AbortController();
 
   // Show typing indicator
   const typingDiv = document.createElement('div');
@@ -448,6 +482,11 @@ async function sendMessage() {
   `;
   messagesContainer.appendChild(typingDiv);
   scrollToBottom();
+
+  let assistantDiv = null;
+  let contentDiv = null;
+  let actionsDiv = null;
+  let fullResponse = '';
 
   try {
     // Build request with current settings
@@ -464,25 +503,24 @@ async function sendMessage() {
       multiPass: currentSettings.multi_pass
     };
 
-    // Stream response
+    // Stream response with abort signal
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: abortController.signal
     });
 
     // Remove typing indicator
     typingDiv.remove();
 
     // Create assistant message container
-    const assistantDiv = document.createElement('div');
+    assistantDiv = document.createElement('div');
     assistantDiv.className = 'message message-assistant';
     assistantDiv.innerHTML = '<div class="message-content"></div><div class="message-actions"></div>';
     messagesContainer.appendChild(assistantDiv);
-    const contentDiv = assistantDiv.querySelector('.message-content');
-    const actionsDiv = assistantDiv.querySelector('.message-actions');
-
-    let fullResponse = '';
+    contentDiv = assistantDiv.querySelector('.message-content');
+    actionsDiv = assistantDiv.querySelector('.message-actions');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
 
@@ -532,14 +570,71 @@ async function sendMessage() {
     loadConversations();
 
   } catch (error) {
-    console.error('Error:', error);
-    typingDiv.remove();
-    displayMessage('assistant', 'Error: Failed to get response. Make sure Ollama is running.');
+    // Handle different error types
+    if (error.name === 'AbortError') {
+      console.log('Generation stopped by user');
+
+      // Remove typing indicator if still visible
+      if (typingDiv && typingDiv.parentNode) {
+        typingDiv.remove();
+      }
+
+      // Save partial response if any
+      if (fullResponse && fullResponse.trim()) {
+        // Add stopped indicator
+        contentDiv.innerHTML = marked.parse(fullResponse + '\n\n*[Generation stopped]*');
+        contentDiv.querySelectorAll('pre code').forEach(block => {
+          hljs.highlightElement(block);
+        });
+
+        // Add regenerate button
+        const regenerateBtn = document.createElement('button');
+        regenerateBtn.className = 'btn-regenerate';
+        regenerateBtn.innerHTML = '🔄 Regenerate';
+        regenerateBtn.onclick = () => regenerateResponse(fullResponse, assistantDiv);
+        actionsDiv.appendChild(regenerateBtn);
+
+        // Add continue button
+        const continueBtn = document.createElement('button');
+        continueBtn.className = 'btn-regenerate';
+        continueBtn.innerHTML = '▶️ Continue';
+        continueBtn.onclick = () => continueGeneration(fullResponse);
+        actionsDiv.appendChild(continueBtn);
+
+        // Save partial message
+        await saveMessage(currentConversationId, 'assistant', fullResponse);
+        currentMessages.push({ role: 'assistant', content: fullResponse });
+
+        loadConversations();
+      } else {
+        // No content generated, just remove the div
+        if (assistantDiv && assistantDiv.parentNode) {
+          assistantDiv.remove();
+        }
+      }
+    } else {
+      // Other errors
+      console.error('Error:', error);
+      if (typingDiv && typingDiv.parentNode) {
+        typingDiv.remove();
+      }
+      displayMessage('assistant', 'Error: Failed to get response. Make sure Ollama is running.');
+    }
   } finally {
-    sendBtn.disabled = false;
     isGenerating = false;
+    abortController = null;
+    updateSendButton();
     userInput.focus();
   }
+}
+
+// Continue generation from where it was stopped
+async function continueGeneration(previousResponse) {
+  if (isGenerating) return;
+
+  // Add a prompt to continue
+  userInput.value = 'Continue from where you stopped.';
+  await sendMessage();
 }
 
 // Regenerate response with variations

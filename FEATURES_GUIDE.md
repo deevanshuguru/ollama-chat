@@ -363,3 +363,29 @@ If responses are slow:
 ---
 
 **Last Updated**: Auto-titles, pin conversations, clear empty chats, keyboard shortcuts added!
+
+### 7. **Stop Generation** ✅
+
+#### Stop Button
+- **When generating**: Send button (➤) changes to Stop button (■) with red background
+- **Click to stop**: Immediately stops the AI generation
+- **Partial responses saved**: Whatever was generated is kept and saved
+- **Continue option**: After stopping, click "▶️ Continue" to resume from where it stopped
+
+#### Use Cases
+- Response going in wrong direction
+- Answer is already good enough
+- Response too long
+- Want to interrupt and ask something different
+- Testing different approaches quickly
+
+#### Behavior
+- Partial response is saved with "[Generation stopped]" marker
+- Can regenerate the full response
+- Can continue from where it stopped
+- Message history includes the partial response
+- Stop button turns red when active
+- Keyboard shortcut works (click send button when generating)
+
+---
+

@@ -760,3 +760,22 @@ body {
 .chat-title-editable:hover {
   background: var(--bg-tertiary);
 }
+
+/* Stop Generation Button */
+.send-button.stop-mode {
+  background: var(--danger);
+}
+
+.send-button.stop-mode:hover {
+  background: #ff6666;
+  transform: translateY(-2px);
+}
+
+.send-button.stop-mode .send-icon {
+  font-size: 16px;
+}
+
+/* Continue Button */
+.btn-regenerate + .btn-regenerate {
+  margin-left: 8px;
+}
