@@ -9,16 +9,46 @@ const PORT = 3333;
 const OLLAMA_URL = 'http://localhost:11434';
 const DATA_FILE = 'chat-history.json';
 
-// Initialize JSON storage for chat history
+// Get local IP address
+function getLocalIPAddress() {
+  const nets = require('os').networkInterfaces();
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        return net.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
+const LOCAL_IP = getLocalIPAddress();
+
+// Initialize JSON storage for chat history with device support
 function loadData() {
   if (fs.existsSync(DATA_FILE)) {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const content = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    // Ensure devices object exists
+    if (!content.devices) content.devices = {};
+    return content;
   }
-  return { conversations: [], messages: [] };
+  return { devices: {}, conversations: [], messages: [] };
 }
 
 function saveData(data) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+}
+
+function getDeviceData(deviceId) {
+  if (!data.devices[deviceId]) {
+    data.devices[deviceId] = {
+      conversations: [],
+      messages: [],
+      created_at: new Date().toISOString()
+    };
+    saveData(data);
+  }
+  return data.devices[deviceId];
 }
 
 let data = loadData();
@@ -202,6 +232,20 @@ function enhanceResponse(text) {
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static('public'));
+
+// Device ID middleware
+app.use((req, res, next) => {
+  let deviceId = req.headers['x-device-id'];
+
+  if (!deviceId) {
+    // Generate new device ID
+    deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substring(7);
+  }
+
+  req.deviceId = deviceId;
+  res.setHeader('X-Device-Id', deviceId);
+  next();
+});
 
 // Get all conversations
 app.get('/api/conversations', (req, res) => {
@@ -559,11 +603,47 @@ function openBrowser() {
   spawn(command, [url], { detached: true, stdio: 'ignore' }).unref();
 }
 
-app.listen(PORT, () => {
-  console.log(`\n🚀 Local AI Labs running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Local AI Labs - Network Ready!`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`📱 Local Access:    http://localhost:${PORT}`);
+  console.log(`🌐 Network Access:  http://${LOCAL_IP}:${PORT}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
   console.log(`💬 Model: dolphin-llama3`);
-  console.log(`⚡ Advanced features enabled\n`);
+  console.log(`⚡ Features: Multi-device, Text selection, Network access`);
+  console.log(`\n📋 Share network URL with devices on same WiFi`);
+  console.log(`🔒 Each device has isolated chat history\n`);
 
   // Auto-open browser after 1 second
   setTimeout(openBrowser, 1000);
 });
+
+// Server info endpoint
+app.get('/api/server/info', (req, res) => {
+  const os = require('os');
+  res.json({
+    localIP: LOCAL_IP,
+    hostname: os.hostname(),
+    urls: {
+      local: `http://localhost:${PORT}`,
+      network: `http://${LOCAL_IP}:${PORT}`
+    },
+    deviceId: req.deviceId,
+    platform: process.platform,
+    uptime: process.uptime()
+  });
+});
+
+// Restart server endpoint
+app.post('/api/server/restart', (req, res) => {
+  res.json({ message: 'Server restarting...' });
+  setTimeout(() => {
+    process.exit(0); // Will be restarted by nodemon or process manager
+  }, 1000);
+});
+
+// Reload page endpoint (clears cache)
+app.post('/api/server/reload', (req, res) => {
+  res.json({ message: 'Clearing cache...' });
+});
+

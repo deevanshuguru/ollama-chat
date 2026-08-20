@@ -139,3 +139,35 @@
   <script src="app.js"></script>
 </body>
 </html>
+
+  <!-- Text Selection Context Menu -->
+  <div id="selection-menu" class="selection-menu" style="display: none;">
+    <button id="use-as-context-btn" class="selection-btn">📋 Use as Context</button>
+    <button id="send-selection-btn" class="selection-btn">➤ Send Selection</button>
+  </div>
+
+  <!-- Server Control Panel (floating) -->
+  <div id="server-panel" class="server-panel" style="display: none;">
+    <div class="server-panel-header">
+      <h4>🛠️ Server Controls</h4>
+      <button id="close-server-panel" class="close-btn">×</button>
+    </div>
+    <div class="server-panel-content">
+      <div class="server-info">
+        <p><strong>Local:</strong> <span id="local-url">Loading...</span></p>
+        <p><strong>Network:</strong> <span id="network-url">Loading...</span></p>
+        <p><strong>Device ID:</strong> <span id="device-id" class="device-id">Loading...</span></p>
+      </div>
+      <div class="server-actions">
+        <button id="copy-network-url-btn" class="btn-action">📋 Copy Network URL</button>
+        <button id="refresh-page-btn" class="btn-action">🔄 Refresh Page</button>
+        <button id="restart-server-btn" class="btn-action-danger">⚠️ Restart Server</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Server Button -->
+  <button id="server-toggle-btn" class="floating-server-btn" title="Server Controls">
+    🌐
+  </button>
+
