@@ -449,8 +449,14 @@ function updateSendButton() {
 
 // Send message with advanced settings
 async function sendMessage() {
-  const message = userInput.value.trim();
+  let message = userInput.value.trim();
   if (!message || isGenerating) return;
+
+  // Prepend context if exists
+  if (selectedContext) {
+    message = `[Context: ${selectedContext}]\n\n${message}`;
+    clearContext();
+  }
 
   // Clear input
   userInput.value = '';
@@ -760,3 +766,279 @@ function scrollToBottom() {
 
 // Focus input on load
 userInput.focus();
+
+// ============================================
+// PHASE 2: Network & Advanced Features
+// ============================================
+
+// Device ID Management
+let deviceId = localStorage.getItem('local-ai-labs-device-id');
+let selectedContext = null;
+
+// Initialize device ID
+async function initializeDevice() {
+  try {
+    const response = await fetch('/api/server/info', {
+      headers: deviceId ? { 'X-Device-Id': deviceId } : {}
+    });
+    
+    const newDeviceId = response.headers.get('X-Device-Id');
+    if (newDeviceId) {
+      deviceId = newDeviceId;
+      localStorage.setItem('local-ai-labs-device-id', deviceId);
+    }
+
+    const data = await response.json();
+    
+    // Update server info in panel
+    if (document.getElementById('local-url')) {
+      document.getElementById('local-url').textContent = data.urls.local;
+      document.getElementById('network-url').textContent = data.urls.network;
+      document.getElementById('device-id').textContent = deviceId || 'Loading...';
+    }
+  } catch (error) {
+    console.error('Error initializing device:', error);
+  }
+}
+
+// Override fetch to include device ID
+const originalFetch = window.fetch;
+window.fetch = function(...args) {
+  if (args[1]) {
+    args[1].headers = {
+      ...args[1].headers,
+      'X-Device-Id': deviceId
+    };
+  } else {
+    args[1] = {
+      headers: { 'X-Device-Id': deviceId }
+    };
+  }
+  return originalFetch.apply(this, args);
+};
+
+// ============================================
+// Text Selection Features
+// ============================================
+
+const selectionMenu = document.getElementById('selection-menu');
+const useAsContextBtn = document.getElementById('use-as-context-btn');
+const sendSelectionBtn = document.getElementById('send-selection-btn');
+let lastSelectedText = '';
+
+// Handle text selection
+document.addEventListener('mouseup', handleTextSelection);
+document.addEventListener('touchend', handleTextSelection);
+
+function handleTextSelection(e) {
+  const selection = window.getSelection();
+  const text = selection.toString().trim();
+
+  if (text.length > 10) {
+    lastSelectedText = text;
+    showSelectionMenu(e.clientX || e.touches[0].clientX, e.clientY || e.touches[0].clientY);
+  } else {
+    hideSelectionMenu();
+  }
+}
+
+function showSelectionMenu(x, y) {
+  selectionMenu.style.display = 'flex';
+  selectionMenu.style.left = x + 'px';
+  selectionMenu.style.top = (y - 50) + 'px';
+
+  // Adjust if off screen
+  const rect = selectionMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    selectionMenu.style.left = (window.innerWidth - rect.width - 10) + 'px';
+  }
+  if (rect.top < 0) {
+    selectionMenu.style.top = '10px';
+  }
+}
+
+function hideSelectionMenu() {
+  selectionMenu.style.display = 'none';
+}
+
+// Use selected text as context
+useAsContextBtn.addEventListener('click', () => {
+  if (lastSelectedText) {
+    selectedContext = lastSelectedText;
+    showContextIndicator();
+    hideSelectionMenu();
+    userInput.focus();
+  }
+});
+
+// Send selected text immediately
+sendSelectionBtn.addEventListener('click', async () => {
+  if (lastSelectedText) {
+    hideSelectionMenu();
+    userInput.value = lastSelectedText;
+    await sendMessage();
+  }
+});
+
+// Show context indicator
+function showContextIndicator() {
+  const inputContainer = document.querySelector('.input-container');
+  
+  // Remove existing indicator
+  const existingIndicator = document.querySelector('.context-indicator');
+  if (existingIndicator) {
+    existingIndicator.remove();
+  }
+
+  // Add new indicator
+  inputContainer.classList.add('has-context');
+  const indicator = document.createElement('div');
+  indicator.className = 'context-indicator';
+  indicator.innerHTML = `Context: ${selectedContext.substring(0, 50)}... <span class="context-clear-btn">×</span>`;
+  inputContainer.insertBefore(indicator, inputContainer.firstChild);
+
+  // Clear context button
+  const clearBtn = indicator.querySelector('.context-clear-btn');
+  clearBtn.addEventListener('click', clearContext);
+}
+
+// Clear selected context
+function clearContext() {
+  selectedContext = null;
+  const inputContainer = document.querySelector('.input-container');
+  const indicator = document.querySelector('.context-indicator');
+  
+  inputContainer.classList.remove('has-context');
+  if (indicator) {
+    indicator.remove();
+  }
+}
+
+// Hide menu when clicking elsewhere
+document.addEventListener('click', (e) => {
+  if (!selectionMenu.contains(e.target)) {
+    hideSelectionMenu();
+  }
+});
+
+// ============================================
+// Server Control Panel
+// ============================================
+
+const serverToggleBtn = document.getElementById('server-toggle-btn');
+const serverPanel = document.getElementById('server-panel');
+const closeServerPanel = document.getElementById('close-server-panel');
+const copyNetworkUrlBtn = document.getElementById('copy-network-url-btn');
+const refreshPageBtn = document.getElementById('refresh-page-btn');
+const restartServerBtn = document.getElementById('restart-server-btn');
+
+// Toggle server panel
+serverToggleBtn.addEventListener('click', () => {
+  serverPanel.style.display = serverPanel.style.display === 'none' ? 'block' : 'none';
+  if (serverPanel.style.display === 'block') {
+    initializeDevice(); // Refresh server info
+  }
+});
+
+// Close server panel
+closeServerPanel.addEventListener('click', () => {
+  serverPanel.style.display = 'none';
+});
+
+// Copy network URL
+copyNetworkUrlBtn.addEventListener('click', async () => {
+  const networkUrl = document.getElementById('network-url').textContent;
+  try {
+    await navigator.clipboard.writeText(networkUrl);
+    showToast('✅ Network URL copied to clipboard!');
+  } catch (error) {
+    // Fallback for older browsers
+    const input = document.createElement('input');
+    input.value = networkUrl;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    showToast('✅ Network URL copied!');
+  }
+});
+
+// Refresh page
+refreshPageBtn.addEventListener('click', () => {
+  showToast('🔄 Refreshing page...');
+  setTimeout(() => {
+    window.location.reload(true); // Hard reload
+  }, 500);
+});
+
+// Restart server
+restartServerBtn.addEventListener('click', async () => {
+  if (confirm('⚠️ Restart server? This will disconnect all devices for a moment.')) {
+    try {
+      showToast('⚠️ Restarting server...');
+      await fetch('/api/server/restart', { method: 'POST' });
+      
+      // Wait and reload
+      setTimeout(() => {
+        showToast('🔄 Reconnecting...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }, 1000);
+    } catch (error) {
+      showToast('✅ Server restarted! Refreshing...');
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    }
+  }
+});
+
+// Toast notification system
+function showToast(message, duration = 3000) {
+  // Remove existing toast
+  const existingToast = document.querySelector('.toast');
+  if (existingToast) {
+    existingToast.remove();
+  }
+
+  // Create toast
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  // Show with animation
+  setTimeout(() => {
+    toast.classList.add('show');
+  }, 10);
+
+  // Hide after duration
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      toast.remove();
+    }, 300);
+  }, duration);
+}
+
+// Initialize device on load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeDevice);
+} else {
+  initializeDevice();
+}
+
+// ============================================
+// Enhanced Keyboard Shortcuts
+// ============================================
+
+// Add server panel shortcut
+document.addEventListener('keydown', (e) => {
+  // Ctrl/Cmd + Shift + S: Toggle server panel
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    serverToggleBtn.click();
+  }
+});
+
