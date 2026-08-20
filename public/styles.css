@@ -699,3 +699,64 @@ body {
     padding: 15px;
   }
 }
+
+/* Conversation List Enhancements */
+.conversation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.conversation-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.conversation-item:hover .conversation-actions {
+  opacity: 1;
+}
+
+.icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 12px;
+  transition: transform 0.2s;
+}
+
+.icon-btn:hover {
+  transform: scale(1.2);
+}
+
+.clear-empty-btn {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 10px;
+  background: rgba(255, 68, 68, 0.2);
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.clear-empty-btn:hover {
+  background: rgba(255, 68, 68, 0.3);
+  transform: translateY(-1px);
+}
+
+/* Title editing */
+.chat-title-editable {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.chat-title-editable:hover {
+  background: var(--bg-tertiary);
+}

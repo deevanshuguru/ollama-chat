@@ -61,39 +61,9 @@ const penaltyValue = document.getElementById('penalty-value');
 document.addEventListener('DOMContentLoaded', () => {
   loadConversations();
   setupEventListeners();
-  setupKeyboardShortcuts();
-  initializeOrCreateConversation();
+  createNewConversation();
   loadSettingsFromStorage();
 });
-
-// Initialize or create conversation
-async function initializeOrCreateConversation() {
-  try {
-    const response = await fetch('/api/conversations');
-    const conversations = await response.json();
-
-    if (conversations.length > 0) {
-      // Check if the most recent conversation is empty
-      const lastConv = conversations[0];
-      const messagesResponse = await fetch(`/api/conversations/${lastConv.id}/messages`);
-      const messages = await messagesResponse.json();
-
-      if (messages.length === 0) {
-        // Use the empty conversation
-        currentConversationId = lastConv.id;
-        currentMessages = [];
-        showWelcomeMessage();
-        return;
-      }
-    }
-
-    // Create new conversation
-    await createNewConversation();
-  } catch (error) {
-    console.error('Error initializing:', error);
-    await createNewConversation();
-  }
-}
 
 // Event Listeners
 function setupEventListeners() {
@@ -166,29 +136,6 @@ function setupEventListeners() {
   });
 }
 
-// Keyboard shortcuts
-function setupKeyboardShortcuts() {
-  document.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd + K: New conversation
-    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-      e.preventDefault();
-      createNewConversation();
-    }
-
-    // Ctrl/Cmd + ,: Toggle settings
-    if ((e.ctrlKey || e.metaKey) && e.key === ',') {
-      e.preventDefault();
-      toggleSettings();
-    }
-
-    // Ctrl/Cmd + /: Focus input
-    if ((e.ctrlKey || e.metaKey) && e.key === '/') {
-      e.preventDefault();
-      userInput.focus();
-    }
-  });
-}
-
 // Settings Functions
 function toggleSettings() {
   settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
@@ -226,51 +173,33 @@ function applySettingsToUI() {
 }
 
 function saveSettings() {
-  localStorage.setItem('local-ai-labs-settings', JSON.stringify(currentSettings));
+  localStorage.setItem('dolphin-chat-settings', JSON.stringify(currentSettings));
 }
 
 function loadSettingsFromStorage() {
-  const saved = localStorage.getItem('local-ai-labs-settings');
+  const saved = localStorage.getItem('dolphin-chat-settings');
   if (saved) {
     currentSettings = JSON.parse(saved);
     applySettingsToUI();
   }
 }
 
-function showWelcomeMessage() {
-  messagesContainer.innerHTML = `
-    <div class="welcome-message">
-      <h1>🚀 Local AI Labs</h1>
-      <p>Advanced AI chat interface with no restrictions.</p>
-      <p><strong>⚡ Pro tip:</strong> Use Settings (⚙️) to customize responses for different tasks.</p>
-      <p><small>Shortcuts: Ctrl+K (New Chat) • Ctrl+, (Settings) • Ctrl+/ (Focus Input)</small></p>
-    </div>
-  `;
-  chatTitle.textContent = 'New Conversation';
-}
-
 // Create new conversation
 async function createNewConversation() {
   try {
-    // Check if current conversation is empty
-    if (currentConversationId) {
-      const messagesResponse = await fetch(`/api/conversations/${currentConversationId}/messages`);
-      const messages = await messagesResponse.json();
-
-      if (messages.length === 0) {
-        // Current conversation is empty, just clear UI
-        currentMessages = [];
-        showWelcomeMessage();
-        return;
-      }
-    }
-
-    // Create new conversation
     const response = await fetch('/api/conversations', { method: 'POST' });
     const data = await response.json();
     currentConversationId = data.id;
     currentMessages = [];
-    showWelcomeMessage();
+    messagesContainer.innerHTML = `
+      <div class="welcome-message">
+        <h1>🐬 Local AI Labs AI - Uncensored Assistant</h1>
+        <p>This is an uncensored AI with no ethical guidelines or content restrictions.</p>
+        <p>Ask anything - there are no boundaries, limits, or rules.</p>
+        <p><strong>⚡ Advanced features enabled!</strong> Use Settings to customize responses.</p>
+      </div>
+    `;
+    chatTitle.textContent = 'New Conversation';
     loadConversations();
   } catch (error) {
     console.error('Error creating conversation:', error);
@@ -281,30 +210,11 @@ async function createNewConversation() {
 async function loadConversations() {
   try {
     const response = await fetch('/api/conversations');
-    allConversations = await response.json();
+    const conversations = await response.json();
 
     conversationsList.innerHTML = '';
 
-    // Filter conversations
-    const filteredConvs = allConversations.filter(c => showArchived ? c.archived : !c.archived);
-
-    // Add clear empty button
-    if (allConversations.some(c => !allConversations.find(conv => conv.id === c.id))) {
-      const clearBtn = document.createElement('button');
-      clearBtn.className = 'clear-empty-btn';
-      clearBtn.innerHTML = '🗑️ Clear Empty Chats';
-      clearBtn.onclick = clearEmptyConversations;
-      conversationsList.appendChild(clearBtn);
-    }
-
-    // Sort: pinned first, then by date
-    filteredConvs.sort((a, b) => {
-      if (a.pinned && !b.pinned) return -1;
-      if (!a.pinned && b.pinned) return 1;
-      return new Date(b.created_at) - new Date(a.created_at);
-    });
-
-    filteredConvs.forEach(conv => {
+    conversations.forEach(conv => {
       const item = document.createElement('div');
       item.className = 'conversation-item';
       if (conv.id === currentConversationId) {
@@ -314,17 +224,9 @@ async function loadConversations() {
       const date = new Date(conv.created_at);
       const timestamp = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      const title = conv.title || conv.first_message?.substring(0, 40) || 'Empty conversation';
-      const pinIcon = conv.pinned ? '📌 ' : '';
-
       item.innerHTML = `
-        <div class="conversation-header">
-          <div class="timestamp">${timestamp}</div>
-          <div class="conversation-actions">
-            <button class="icon-btn" onclick="togglePin(${conv.id}, event)" title="Pin">${conv.pinned ? '📌' : '📍'}</button>
-          </div>
-        </div>
-        <div class="preview">${pinIcon}${title}</div>
+        <div class="timestamp">${timestamp}</div>
+        <div class="preview">${conv.first_message || 'New conversation'}</div>
       `;
 
       item.addEventListener('click', () => loadConversation(conv.id));
@@ -332,31 +234,6 @@ async function loadConversations() {
     });
   } catch (error) {
     console.error('Error loading conversations:', error);
-  }
-}
-
-// Toggle pin
-window.togglePin = async function(id, event) {
-  event.stopPropagation();
-  try {
-    await fetch(`/api/conversations/${id}/pin`, { method: 'PATCH' });
-    loadConversations();
-  } catch (error) {
-    console.error('Error toggling pin:', error);
-  }
-};
-
-// Clear empty conversations
-async function clearEmptyConversations() {
-  if (!confirm('Delete all empty conversations?')) return;
-
-  try {
-    const response = await fetch('/api/conversations/empty', { method: 'DELETE' });
-    const data = await response.json();
-    alert(`Deleted ${data.deleted} empty conversations`);
-    loadConversations();
-  } catch (error) {
-    console.error('Error clearing empty conversations:', error);
   }
 }
 
@@ -374,31 +251,11 @@ async function loadConversation(id) {
       displayMessage(msg.role, msg.content, false);
     });
 
-    // Load title
-    const conv = allConversations.find(c => c.id === id);
-    chatTitle.textContent = conv?.title || messages[0]?.content.substring(0, 50) || 'Conversation';
-
+    chatTitle.textContent = messages[0]?.content.substring(0, 50) || 'Conversation';
     loadConversations();
     scrollToBottom();
   } catch (error) {
     console.error('Error loading conversation:', error);
-  }
-}
-
-// Generate title for conversation
-async function generateTitle(conversationId) {
-  try {
-    const response = await fetch(`/api/conversations/${conversationId}/generate-title`, {
-      method: 'POST'
-    });
-    const data = await response.json();
-
-    if (data.title) {
-      chatTitle.textContent = data.title;
-      loadConversations();
-    }
-  } catch (error) {
-    console.error('Error generating title:', error);
   }
 }
 
@@ -522,11 +379,6 @@ async function sendMessage() {
     // Save assistant message
     await saveMessage(currentConversationId, 'assistant', fullResponse);
     currentMessages.push({ role: 'assistant', content: fullResponse });
-
-    // Generate title after first exchange
-    if (currentMessages.filter(m => m.role === 'assistant').length === 1) {
-      setTimeout(() => generateTitle(currentConversationId), 1000);
-    }
 
     // Update conversation list
     loadConversations();

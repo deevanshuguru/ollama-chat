@@ -228,11 +228,117 @@ app.get('/api/conversations/:id/messages', (req, res) => {
 app.post('/api/conversations', (req, res) => {
   const newConv = {
     id: data.conversations.length > 0 ? Math.max(...data.conversations.map(c => c.id)) + 1 : 1,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
+    title: null,
+    pinned: false,
+    archived: false
   };
   data.conversations.push(newConv);
   saveData(data);
   res.json({ id: newConv.id });
+});
+
+// Update conversation title
+app.patch('/api/conversations/:id/title', (req, res) => {
+  const id = parseInt(req.params.id);
+  const { title } = req.body;
+  const conv = data.conversations.find(c => c.id === id);
+  if (conv) {
+    conv.title = title;
+    saveData(data);
+    res.json({ success: true, title });
+  } else {
+    res.status(404).json({ error: 'Conversation not found' });
+  }
+});
+
+// Toggle pin conversation
+app.patch('/api/conversations/:id/pin', (req, res) => {
+  const id = parseInt(req.params.id);
+  const conv = data.conversations.find(c => c.id === id);
+  if (conv) {
+    conv.pinned = !conv.pinned;
+    saveData(data);
+    res.json({ success: true, pinned: conv.pinned });
+  } else {
+    res.status(404).json({ error: 'Conversation not found' });
+  }
+});
+
+// Toggle archive conversation
+app.patch('/api/conversations/:id/archive', (req, res) => {
+  const id = parseInt(req.params.id);
+  const conv = data.conversations.find(c => c.id === id);
+  if (conv) {
+    conv.archived = !conv.archived;
+    saveData(data);
+    res.json({ success: true, archived: conv.archived });
+  } else {
+    res.status(404).json({ error: 'Conversation not found' });
+  }
+});
+
+// Delete all empty conversations
+app.delete('/api/conversations/empty', (req, res) => {
+  const emptyConvIds = data.conversations
+    .filter(c => !data.messages.some(m => m.conversation_id === c.id))
+    .map(c => c.id);
+
+  data.conversations = data.conversations.filter(c => !emptyConvIds.includes(c.id));
+  saveData(data);
+  res.json({ success: true, deleted: emptyConvIds.length });
+});
+
+// Generate title for conversation
+app.post('/api/conversations/:id/generate-title', async (req, res) => {
+  const id = parseInt(req.params.id);
+  const messages = data.messages
+    .filter(m => m.conversation_id === id)
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .slice(0, 4); // First 2 exchanges
+
+  if (messages.length < 2) {
+    return res.json({ title: 'New conversation' });
+  }
+
+  try {
+    const context = messages.map(m => `${m.role}: ${m.content.substring(0, 200)}`).join('\n');
+
+    const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'dolphin-llama3',
+        messages: [
+          {
+            role: 'system',
+            content: 'Generate a concise 3-5 word title for this conversation. Only respond with the title, nothing else.'
+          },
+          {
+            role: 'user',
+            content: `Conversation:\n${context}\n\nGenerate a short title (3-5 words):`
+          }
+        ],
+        stream: false,
+        options: { temperature: 0.5, num_predict: 20 }
+      })
+    });
+
+    const titleData = await response.json();
+    const title = titleData.message.content.trim().replace(/['"]/g, '');
+
+    // Update conversation title
+    const conv = data.conversations.find(c => c.id === id);
+    if (conv) {
+      conv.title = title;
+      saveData(data);
+    }
+
+    res.json({ title });
+  } catch (error) {
+    console.error('Error generating title:', error);
+    res.json({ title: messages[0]?.content.substring(0, 30) || 'New conversation' });
+  }
 });
 
 // Delete conversation
