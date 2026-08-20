@@ -1,5 +1,27 @@
+# Logs
+*.log
+server.log
+server-responsive.log
+
+# Process ID files
+*.pid
+server.pid
+
+# Node modules
 node_modules/
-chat-history.json
-.DS_Store
+
+# Environment variables
 .env
-npm-debug.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files
+chat-history.json

@@ -1042,3 +1042,70 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+
+// ============================================
+// MOBILE MENU TOGGLE
+// ============================================
+
+const mobileMenuToggle = document.getElementById('mobile-menu-toggle');
+const sidebar = document.querySelector('.sidebar');
+let mobileOverlay = null;
+
+// Create mobile overlay
+function createMobileOverlay() {
+  if (!mobileOverlay) {
+    mobileOverlay = document.createElement('div');
+    mobileOverlay.className = 'mobile-overlay';
+    document.body.appendChild(mobileOverlay);
+    
+    mobileOverlay.addEventListener('click', closeMobileSidebar);
+  }
+}
+
+function openMobileSidebar() {
+  createMobileOverlay();
+  sidebar.classList.add('mobile-open');
+  mobileOverlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileSidebar() {
+  sidebar.classList.remove('mobile-open');
+  if (mobileOverlay) {
+    mobileOverlay.classList.remove('active');
+  }
+  document.body.style.overflow = '';
+}
+
+function toggleMobileSidebar() {
+  if (sidebar.classList.contains('mobile-open')) {
+    closeMobileSidebar();
+  } else {
+    openMobileSidebar();
+  }
+}
+
+// Mobile menu toggle button
+if (mobileMenuToggle) {
+  mobileMenuToggle.addEventListener('click', toggleMobileSidebar);
+}
+
+// Close mobile sidebar when conversation is clicked
+conversationsList.addEventListener('click', (e) => {
+  if (window.innerWidth <= 768 && e.target.closest('.conversation-item')) {
+    setTimeout(closeMobileSidebar, 100);
+  }
+});
+
+// Close mobile sidebar on window resize if screen becomes larger
+window.addEventListener('resize', () => {
+  if (window.innerWidth > 768) {
+    closeMobileSidebar();
+  }
+});
+
+// Initialize mobile overlay
+if (window.innerWidth <= 768) {
+  createMobileOverlay();
+}
+
