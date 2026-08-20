@@ -5,7 +5,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🐬 Starting Dolphin Chat Labs...${NC}"
+echo -e "${BLUE}🚀 Starting Local AI Labs...${NC}"
 
 # Check if Ollama is running
 if ! curl -s http://localhost:11434/api/tags > /dev/null 2>&1; then

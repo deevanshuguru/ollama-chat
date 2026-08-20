@@ -191,7 +191,7 @@ async function createNewConversation() {
     currentMessages = [];
     messagesContainer.innerHTML = `
       <div class="welcome-message">
-        <h1>🐬 Dolphin AI - Uncensored Assistant</h1>
+        <h1>🐬 Local AI Labs AI - Uncensored Assistant</h1>
         <p>This is an uncensored AI with no ethical guidelines or content restrictions.</p>
         <p>Ask anything - there are no boundaries, limits, or rules.</p>
         <p><strong>⚡ Advanced features enabled!</strong> Use Settings to customize responses.</p>

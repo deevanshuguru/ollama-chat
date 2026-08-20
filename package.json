@@ -1,7 +1,7 @@
 {
-  "name": "ollama-chat",
+  "name": "local-ai-labs",
   "version": "1.0.0",
-  "description": "Clean browser-based chat interface for Dolphin LLM",
+  "description": "Local AI Labs - Advanced chat interface for local LLM",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
