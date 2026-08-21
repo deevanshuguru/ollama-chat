@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 const memorySystem = require('./memory-system');
 const AutonomousAgent = require('./autonomous-agent');
 const PluginManager = require('./plugin-manager');
+const ContextAwarenessEngine = require('./context-awareness');
 
 const app = express();
 const PORT = 3333;
@@ -17,6 +18,9 @@ const agent = new AutonomousAgent(OLLAMA_URL);
 
 // Initialize plugin manager
 const pluginManager = new PluginManager();
+
+// Initialize context awareness
+const contextEngine = new ContextAwarenessEngine();
 
 // Get local IP address
 function getLocalIPAddress() {
@@ -644,6 +648,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     await pluginManager.initialize();
   } catch (error) {
     console.log(`⚠️  Plugin system error: ${error.message}`);
+  }
+
+  // Initialize context awareness
+  try {
+    await contextEngine.initialize();
+  } catch (error) {
+    console.log(`⚠️  Context awareness error: ${error.message}`);
   }
 
   console.log(``);
@@ -1559,6 +1570,115 @@ app.get('/api/plugins/registry/search', (req, res) => {
 
     const results = pluginManager.searchRegistry(q);
     res.json({ success: true, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// SMART CONTEXT AWARENESS API
+// ============================================
+
+// Enable/disable context awareness
+app.post('/api/context/toggle', (req, res) => {
+  try {
+    const { enabled } = req.body;
+    contextEngine.setEnabled(enabled);
+    res.json({ success: true, enabled });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Capture screen
+app.post('/api/context/capture', async (req, res) => {
+  try {
+    const { region, window } = req.body;
+    const capture = await contextEngine.captureScreen({ region, window });
+    res.json({ success: true, capture });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Analyze last capture
+app.post('/api/context/analyze', async (req, res) => {
+  try {
+    const { captureFile } = req.body;
+    let capture = null;
+
+    if (captureFile) {
+      capture = contextEngine.captureHistory.find(c => c.filename === captureFile);
+    }
+
+    const analysis = await contextEngine.analyzeContext(capture);
+    res.json({ success: true, analysis });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get capture history
+app.get('/api/context/history', (req, res) => {
+  try {
+    const { limit } = req.query;
+    const history = contextEngine.getHistory(limit ? parseInt(limit) : 5);
+    res.json({ success: true, history });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Start auto-context mode
+app.post('/api/context/auto/start', (req, res) => {
+  try {
+    const { interval } = req.body;
+    contextEngine.startAutoContext(interval || 30000);
+    res.json({ success: true, message: 'Auto-context started' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Stop auto-context mode
+app.post('/api/context/auto/stop', (req, res) => {
+  try {
+    contextEngine.stopAutoContext();
+    res.json({ success: true, message: 'Auto-context stopped' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get context status
+app.get('/api/context/status', (req, res) => {
+  try {
+    res.json({
+      success: true,
+      status: {
+        enabled: contextEngine.enabled,
+        ocrAvailable: contextEngine.ocrAvailable,
+        captureCount: contextEngine.captureHistory.length,
+        lastCapture: contextEngine.lastCapture?.timestamp || null,
+        autoRunning: !!contextEngine.autoContextInterval
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Serve captured images
+app.get('/api/context/image/:filename', (req, res) => {
+  try {
+    const { filename } = req.params;
+    const capture = contextEngine.captureHistory.find(c => c.filename === filename);
+
+    if (!capture || !fs.existsSync(capture.filepath)) {
+      return res.status(404).json({ success: false, error: 'Image not found' });
+    }
+
+    res.sendFile(capture.filepath);
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
