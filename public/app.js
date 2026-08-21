@@ -466,6 +466,22 @@ async function sendMessage() {
   displayMessage('user', message);
   await saveMessage(currentConversationId, 'user', message);
 
+  // Check for visualization command
+  if (typeof handleVizCommand !== 'undefined') {
+    const handled = await handleVizCommand(message);
+    if (handled) {
+      return; // Command was handled, don't send to chat API
+    }
+  }
+
+  // Check for tool command (from tools.js)
+  if (typeof handleToolCommand !== 'undefined') {
+    const handled = await handleToolCommand(message);
+    if (handled) {
+      return; // Tool command was handled
+    }
+  }
+
   // Add to messages array
   currentMessages.push({ role: 'user', content: message });
 

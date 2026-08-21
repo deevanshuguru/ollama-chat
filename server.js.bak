@@ -1236,106 +1236,6 @@ app.post('/api/tools/execute', async (req, res) => {
 });
 
 // ============================================
-// VISUAL DATA ANALYTICS
-// ============================================
-
-const DataVisualizer = require('./visualizer');
-const visualizer = new DataVisualizer();
-
-// Visualize data endpoint
-app.post('/api/visualize', async (req, res) => {
-  try {
-    const { data, type, title, width, height } = req.body;
-
-    if (!data) {
-      return res.status(400).json({
-        success: false,
-        error: 'Data is required'
-      });
-    }
-
-    const result = await visualizer.visualize(data, {
-      type,
-      title: title || 'Data Visualization',
-      width: width || 800,
-      height: height || 500
-    });
-
-    if (!result.success) {
-      return res.status(400).json(result);
-    }
-
-    // Save HTML to temp file
-    const timestamp = Date.now();
-    const filename = `viz_${timestamp}.html`;
-    const filepath = path.join(__dirname, 'public', 'visualizations', filename);
-
-    // Create visualizations directory if not exists
-    const vizDir = path.join(__dirname, 'public', 'visualizations');
-    if (!fs.existsSync(vizDir)) {
-      fs.mkdirSync(vizDir, { recursive: true });
-    }
-
-    fs.writeFileSync(filepath, result.html);
-
-    res.json({
-      success: true,
-      chartType: result.chartType,
-      dataPoints: result.dataPoints,
-      url: `/visualizations/${filename}`,
-      filepath
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// Get statistics for data
-app.post('/api/visualize/stats', async (req, res) => {
-  try {
-    const { data } = req.body;
-
-    if (!data) {
-      return res.status(400).json({
-        success: false,
-        error: 'Data is required'
-      });
-    }
-
-    let parsedData;
-    if (typeof data === 'string') {
-      const trimmed = data.trim();
-      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-        parsedData = JSON.parse(trimmed);
-      } else {
-        parsedData = visualizer.parseCSV(trimmed);
-      }
-    } else {
-      parsedData = data;
-    }
-
-    const stats = visualizer.calculateStats(parsedData);
-
-    res.json({
-      success: true,
-      stats,
-      rowCount: parsedData.length,
-      columns: Object.keys(parsedData[0])
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-});
-
-// ============================================
 // AUTONOMOUS AGENT MODE
 // ============================================
 
@@ -1428,7 +1328,7 @@ app.post('/api/autonomous', async (req, res) => {
   }
 
   // Set up Server-Sent Events
-  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Content-Type': 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
