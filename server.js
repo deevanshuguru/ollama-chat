@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const memorySystem = require('./memory-system');
 const AutonomousAgent = require('./autonomous-agent');
+const PluginManager = require('./plugin-manager');
 
 const app = express();
 const PORT = 3333;
@@ -13,6 +14,9 @@ const DATA_FILE = 'chat-history.json';
 
 // Initialize autonomous agent
 const agent = new AutonomousAgent(OLLAMA_URL);
+
+// Initialize plugin manager
+const pluginManager = new PluginManager();
 
 // Get local IP address
 function getLocalIPAddress() {
@@ -633,6 +637,13 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log(`✅ Memory system ready (ChromaDB)`);
   } else {
     console.log(`⚠️  Memory system unavailable (install: docker run -p 8000:8000 chromadb/chroma)`);
+  }
+
+  // Initialize plugin system
+  try {
+    await pluginManager.initialize();
+  } catch (error) {
+    console.log(`⚠️  Plugin system error: ${error.message}`);
   }
 
   console.log(``);
@@ -1444,6 +1455,112 @@ app.post('/api/autonomous', async (req, res) => {
   } catch (error) {
     res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
     res.end();
+  }
+});
+
+// ============================================
+// PLUGIN SYSTEM API
+// ============================================
+
+// List all plugins
+app.get('/api/plugins', (req, res) => {
+  try {
+    const plugins = pluginManager.listPlugins();
+    res.json({ success: true, plugins });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get plugin info
+app.get('/api/plugins/:name', (req, res) => {
+  try {
+    const info = pluginManager.getPluginInfo(req.params.name);
+    res.json({ success: true, info });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Install plugin
+app.post('/api/plugins/install', async (req, res) => {
+  try {
+    const { source, force } = req.body;
+
+    if (!source) {
+      return res.status(400).json({ success: false, error: 'Source is required' });
+    }
+
+    const result = await pluginManager.installPlugin(source, { force });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Uninstall plugin
+app.delete('/api/plugins/:name', async (req, res) => {
+  try {
+    const result = await pluginManager.uninstallPlugin(req.params.name);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Toggle plugin (enable/disable)
+app.post('/api/plugins/:name/toggle', (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const result = pluginManager.togglePlugin(req.params.name, enabled);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Execute plugin tool
+app.post('/api/plugins/:name/tools/:tool', async (req, res) => {
+  try {
+    const { name, tool } = req.params;
+    const params = req.body;
+
+    const result = await pluginManager.executeTool(name, tool, params);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Execute plugin command
+app.post('/api/plugins/command', async (req, res) => {
+  try {
+    const { command, args } = req.body;
+
+    if (!command) {
+      return res.status(400).json({ success: false, error: 'Command is required' });
+    }
+
+    const result = await pluginManager.executeCommand(command, args);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Search plugin registry
+app.get('/api/plugins/registry/search', (req, res) => {
+  try {
+    const { q } = req.query;
+
+    if (!q) {
+      return res.status(400).json({ success: false, error: 'Query parameter q is required' });
+    }
+
+    const results = pluginManager.searchRegistry(q);
+    res.json({ success: true, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

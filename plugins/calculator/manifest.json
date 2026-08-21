@@ -1,0 +1,15 @@
+{
+  "name": "calculator",
+  "version": "1.0.0",
+  "description": "Advanced mathematical calculations and conversions",
+  "author": "Local AI Labs",
+  "main": "index.js",
+  "permissions": [],
+  "tags": [
+    "math",
+    "calculator",
+    "conversion",
+    "utility"
+  ],
+  "icon": "🔢"
+}

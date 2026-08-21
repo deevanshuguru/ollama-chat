@@ -1,0 +1,16 @@
+{
+  "name": "weather",
+  "version": "1.0.0",
+  "description": "Get weather information for any location",
+  "author": "Local AI Labs",
+  "main": "index.js",
+  "permissions": [
+    "network"
+  ],
+  "tags": [
+    "weather",
+    "forecast",
+    "temperature"
+  ],
+  "icon": "☁️"
+}
