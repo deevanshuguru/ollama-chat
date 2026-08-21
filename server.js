@@ -4,11 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const memorySystem = require('./memory-system');
+const AutonomousAgent = require('./autonomous-agent');
 
 const app = express();
 const PORT = 3333;
 const OLLAMA_URL = 'http://localhost:11434';
 const DATA_FILE = 'chat-history.json';
+
+// Initialize autonomous agent
+const agent = new AutonomousAgent(OLLAMA_URL);
 
 // Get local IP address
 function getLocalIPAddress() {
@@ -1228,6 +1232,118 @@ app.post('/api/tools/execute', async (req, res) => {
       error: error.message,
       success: false
     });
+  }
+});
+
+// ============================================
+// AUTONOMOUS AGENT MODE
+// ============================================
+
+// Register tool executors with autonomous agent
+agent.registerExecutors({
+  terminal: async (params) => {
+    const { exec } = require('child_process');
+    return new Promise((resolve) => {
+      exec(params.command, { timeout: 30000, maxBuffer: 1024 * 1024 }, (error, stdout, stderr) => {
+        resolve({
+          tool: 'terminal',
+          command: params.command,
+          stdout: stdout.slice(0, 10000),
+          stderr: stderr.slice(0, 10000),
+          error: error ? error.message : null,
+          success: !error
+        });
+      });
+    });
+  },
+
+  search: async (params) => {
+    try {
+      const fetch = (await import('node-fetch')).default;
+      const cheerio = require('cheerio');
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(params.query)}`;
+
+      const response = await fetch(searchUrl, {
+        headers: { 'User-Agent': 'Mozilla/5.0' },
+        timeout: 10000
+      });
+
+      const html = await response.text();
+      const $ = cheerio.load(html);
+      const results = [];
+
+      $('.result').slice(0, 10).each((i, elem) => {
+        const $result = $(elem);
+        results.push({
+          title: $result.find('.result__a').text().trim(),
+          url: $result.find('.result__a').attr('href'),
+          snippet: $result.find('.result__snippet').text().trim()
+        });
+      });
+
+      return { tool: 'search', query: params.query, results, success: true };
+    } catch (error) {
+      return { tool: 'search', error: error.message, success: false };
+    }
+  },
+
+  file_read: async (params) => {
+    try {
+      const content = fs.readFileSync(params.path, 'utf8');
+      return { tool: 'file_read', path: params.path, content: content.slice(0, 100000), success: true };
+    } catch (error) {
+      return { tool: 'file_read', path: params.path, error: error.message, success: false };
+    }
+  },
+
+  file_list: async (params) => {
+    try {
+      const files = fs.readdirSync(params.path);
+      const fileDetails = files.map(file => {
+        const filePath = require('path').join(params.path, file);
+        try {
+          const stats = fs.statSync(filePath);
+          return {
+            name: file,
+            type: stats.isDirectory() ? 'directory' : 'file',
+            size: stats.size
+          };
+        } catch {
+          return { name: file, error: 'Cannot read' };
+        }
+      });
+      return { tool: 'file_list', path: params.path, files: fileDetails, success: true };
+    } catch (error) {
+      return { tool: 'file_list', path: params.path, error: error.message, success: false };
+    }
+  }
+});
+
+// Autonomous execution endpoint (SSE for real-time updates)
+app.post('/api/autonomous', async (req, res) => {
+  const { goal } = req.body;
+
+  if (!goal) {
+    return res.status(400).json({ error: 'Goal required' });
+  }
+
+  // Set up Server-Sent Events
+  res.setHeader('Content-Type': 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  try {
+    await agent.executeTask(goal, (update) => {
+      // Send update to client
+      res.write(`data: ${JSON.stringify(update)}\n\n`);
+    });
+
+    res.write('data: {"type":"complete"}\n\n');
+    res.end();
+
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    res.end();
   }
 });
 
